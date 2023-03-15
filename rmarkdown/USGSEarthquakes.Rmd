@@ -1,0 +1,762 @@
+---
+title: "USGSEarthquakes"
+output:
+  pdf_document: default
+  html_document: default
+date: "2023-02-05"
+---
+
+```{r setup, include= FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## USGS EARTHQUAKE DATASET
+
+Earthquakes form an integral part of our planet’s geology. 
+It is crucial to gain an understanding of the frequency and strength of
+these seismic activities, as this information is essential in both the cause 
+and prevention of damaging earthquakes. Fortunately for us, 
+the United States Geological Survey (USGS) captures comprehensive data on 
+Earthquakes magnitude and location across the United States and 
+its surrounding areas.
+
+```{r earthquake, echo= TRUE}
+earthquake <- read.csv("C:/Users/buson/OneDrive/Desktop/r_project/project_folder/data/usgs_main.csv")
+earthquake <- earthquake[!is.na(earthquake$mag),]
+```
+
+Since the time column contains data that is not very useful as a whole, we extract the month and the day from each record, creating two new variables. As a result, we create a new data set using the command data.frame, called “df_earthquake”. From this point on we will work on it.
+
+```{r df_earthquake, echo= FALSE, include= TRUE}
+earthquake$time <- as.POSIXct(earthquake$time, tz = "", format = "%Y-%m-%d")
+days <- format(earthquake$time, "%d")
+months <- format(earthquake$time, "%m")
+
+df_earthquake <- data.frame(months, 
+                 days, 
+                 latitude = earthquake$latitude, 
+                 longitude = earthquake$longitude, 
+                 depth = earthquake$depth, 
+                 mag = earthquake$mag, 
+                 rms = earthquake$rms, 
+                 place = earthquake$place, 
+                 type = earthquake$type)
+head(df_earthquake)
+```
+
+First of all, we are going to use a subset of the "df_earthquake" data set. 
+The main reason is the dimension: in fact, more than 75 thousand records can  
+be difficult to handle. To avoid the problem, we are going to use 
+the library "dplyr", in particular, the function "sample_n()" to extract 
+randomly 2500 records.
+
+```{r sampling, echo= TRUE, include = TRUE, warning= FALSE, message= FALSE}
+library(dplyr)
+
+set.seed(1)
+df <- sample_n(tbl = df_earthquake, size = 2500)
+```
+
+## DISTRIBUTION PER MONTH
+
+In this first part, our focus is the monthly distribution of records. 
+We, therefore, create a new data set using the command "data.frame()" in 
+combination with the function "table()" . We store this new data set with 
+the name "count_months". 
+
+```{r count_month, echo= TRUE, include = TRUE}
+count_months <- data.frame(table(as.numeric(df$months)))
+head(count_months)
+```
+
+To show the result we opted for a histogram. The idea is that we want to show the 
+number of records in each month (frequency). For plotting data, we decided to
+use two libraries, "ggplot2" and "plotly". The main graph is created with 
+the function "ggplot()" and stored into a variable "p". Then the plot is performed 
+by the function "ggplotly()".
+
+```{r monthdistributionplot, echo= FALSE, include= TRUE, message= FALSE, warning= FALSE,  fig.width = 10}
+library(ggplot2)
+library(plotly)
+
+p <- ggplot(count_months, aes(x = Var1, y = Freq, fill = Var1)) +
+  geom_histogram(stat = "identity") + 
+  ggtitle("Distribution of earthquakes per month/n2022 USGS earthquake dataset") +
+  xlab("Month") + 
+  ylab("Frequency") +
+  scale_fill_manual(values = heat.colors(10)) +
+  theme(
+    legend.title = element_text(
+      family = "Calibri",
+      face = "bold",
+      size = 12),
+    legend.background = element_rect(fill = "white", colour = "black"),
+  )
+
+ggplotly(p)
+```
+
+As we can see from the graph the month with the highest frequency is October.
+However. The minimum frequency is registered in the month of December.
+This is because the last record date is the 12th of December. 
+That means that the month was not complete.
+This fact explains the low number compared to the other months. We have a similar
+situation with March, since the first day on the record is the 3rd (even if there are 
+just 2 days missing).
+Our analysis is that the month does not influence the frequency of 
+earthquakes. We want now to analyse if the month has some influence on 
+the magnitude of an earthquake.
+
+## MAGNITUDE PER MONTH
+
+First of all, we want to perform an ANOVA test to evaluate if changing the month affects 
+significantly the magnitude of an earthquake. In other words, we want to measure
+if the intensity of an earthquake is influenced by temporal aspects.
+
+```{r anovamotnhmag, echo= TRUE, include = TRUE}
+fit <- aov(mag~months, data = df)
+summary(fit)
+```
+
+The summary result shows that the ANOVA model is significant for a test at 
+a significance level of alpha = 0.05. In fact, the p-value of the test is 0.0192 and 
+the F-statistic is big enough. However, we believe that this statistic is
+due to random circumstances. In fact, changing an arbitrary parameter as the 
+significance level alpha to a lower value (for example 0.01) could be enough 
+to completely change our point of view. We, therefore, decide not to consider 
+this result in our model. To support our theory we draw some box-plot. 
+
+Also in this case we use the libraries "ggplot2" and "plotly". In addition, 
+the type of graph that we have selected is the box-plot. The reason is that 
+it let us show the distribution of the values for each month. In particular, 
+with the interactive plot, it is possible to visualize the median, quartiles and 
+outliers. 
+
+```{r plotmonthmag, echo= FALSE, include = TRUE,  fig.width = 10}
+p <- ggplot(df, aes(x = months, y = mag, fill = months)) + 
+  geom_boxplot(outlier.colour = "black") + 
+  ggtitle("Distribution of Magnitude per month
+          /n2022 USGS earthquake dataset") +
+  xlab("Month") + 
+  ylab("Magnitude (in Richter scale)") +
+  scale_fill_manual(values = heat.colors(10)) +
+  theme(
+    legend.title = element_text(
+      family = "Calibri",
+      face = "bold",
+      size = 12),
+    legend.background = element_rect(fill = "white", colour = "black"),
+  )
+
+ggplotly(p)
+```
+
+After all these considerations, we conclude that months and 
+magnitude are not in a relation to causality. Every seismic event depends on
+the Earth's crust movements. As a result, also the magnitude depends on it. 
+Moreover, we want to specify an aspect related to the magnitude that will appear
+frequently in our data. The magnitude of an earthquake could be negative. 
+These records are part of the phenomenon of micro-seismicity. These kinds of 
+earthquakes are not felt by humans but devices can detect them. Since their
+intensity (logarithmic scale) is lower than 0 in the Richter scale, 
+these values are negative.
+
+## GEOGRAPHICAL DATA VISUALISATION
+
+```{r geo_plot_general, echo= FALSE, include = TRUE,  fig.width = 10, message=FALSE, warning=FALSE}
+earthquake <- earthquake[!is.na(earthquake$mag),]
+
+earthquake$time <- as.POSIXct(earthquake$time, tz = "", format = "%Y-%m-%d")
+
+days <- format(earthquake$time, "%d")
+months <- format(earthquake$time, "%m")
+
+
+df_geo_vis <- data.frame(months, days, 
+                         latitude = earthquake$latitude, 
+                         longitude = earthquake$longitude, 
+                         depth = earthquake$depth, 
+                         mag = earthquake$mag, 
+                         rms = earthquake$rms, 
+                         place = earthquake$place, 
+                         type = earthquake$type,
+                         int_mag= as.integer(earthquake$mag))
+
+library("rnaturalearth")
+library("rnaturalearthdata")
+
+# Getting the shape file of the world 
+world <- ne_countries(scale = "large", returnclass = "sf")
+
+set.seed(1)
+
+df_geo_vis <- sample_n(tbl = df_geo_vis, size = 5000)
+
+df_geo_vis[, "int_mag"] <- as.character(df_geo_vis[, "int_mag"])
+
+p <-ggplot() + geom_sf(data = world)+ 
+  
+  geom_point(data=df_geo_vis, 
+             mapping = aes(x=longitude,
+                           y=latitude), 
+             color = "red",
+             size = 0.3) +
+  ggtitle("Distribution of Earthquakes.")
+
+ggplotly(p)
+```
+
+This is the first graph we are defining for the geographical representation.  
+Later on, in this report, you can find more deep analysis of it. What we want 
+the reader to understand is the distribution of data. In particular, we want to show
+the most affected areas using, in this case, a standardised colour. However, as it is possible to 
+see from this graphical representation, the majority of the records are in the US.
+This is a bias that we could not escape and it is linked to the fact that 
+the data are collected from US stations. Our way to avoid the problem was to 
+consider only data with a certain magnitude. 
+
+## DEPTH ANALYSIS
+
+We want now to analyse if there are some interesting patterns in 
+depth distribution. In particular, we are going to investigate if there is 
+some form of correlation between depth and the magnitude of the earthquake.
+We perform the evaluation using "ggplot2" and "plotly".
+The first step is to create data sets for all the cases (general, magnitude 
+greater than 2.5, magnitude greater than 4, magnitude greater than 5).
+In addition, we are using the library "gridExtra" to create a plot containing
+multiple graphs.
+
+```{r plotdephtdistribution, echo= FALSE, include = TRUE, warning= FALSE, message= FALSE,  fig.width = 10}
+p <- ggplot(df, aes(x = depth, fill = type)) +
+  geom_histogram() + 
+  ggtitle("Distribution of depth") +
+  xlab("Seismic event depth") +
+  scale_fill_manual(name = "Earthquake type", values = c("#A099FF", "#1B0AFF", "#0C00A8")) +
+  theme(
+    legend.title = element_text(
+      family = "Calibri",
+      face = "bold",
+      size = 12),
+    legend.background = element_rect(fill = "white", colour = "black"),
+  )
+
+# In this part, we analyse the distribution of depth of all the earthquakes that 
+# are perceivable. 
+df_twopointfive <- df[which(df$mag > 2.5), ]
+
+p25 <- ggplot(df_twopointfive, aes(x = depth, fill = type)) +
+  geom_histogram() + 
+  ggtitle("Distribution of depth/nMagnitude greater than 2.5") +
+  xlab("Seismic event depth") +
+  scale_fill_manual(name = "Earthquake type", values = "#E5E600") +
+  theme(
+    legend.title = element_text(
+      family = "Calibri",
+      face = "bold",
+      size = 12),
+    legend.background = element_rect(fill = "white", colour = "black"),
+  )
+
+# In this part, we analyse the distribution of depth of all the medium-to-high 
+# intensity earthquakes. 
+df_four <- df[which(df$mag > 4), ]
+
+p4 <- ggplot(df_four, aes(x = depth, fill = type)) +
+  geom_histogram() + 
+  ggtitle("Distribution of depth/nMagnitude greater than 4") +
+  xlab("Seismic event depth") +
+  scale_fill_manual(name = "Earthquake type", values = "#FF7127") +
+  theme(
+    legend.title = element_text(
+      family = "Calibri",
+      face = "bold",
+      size = 12),
+    legend.background = element_rect(fill = "white", colour = "black"),
+  )
+
+# In this part, we analyse the distribution of depth of the most intense 
+# earthquakes.
+df_five <- df[which(df$mag > 5), ]
+p5 <- ggplot(df_five, aes(x = depth, fill = type)) +
+  geom_histogram() + 
+  ggtitle("Distribution of depth/nMagnitude greater than 5") +
+  xlab("Seismic event depth") +
+  scale_fill_manual(name = "Earthquake type", values = "#FF2200") +
+  theme(
+    legend.title = element_text(
+      family = "Calibri",
+      face = "bold",
+      size = 12),
+    legend.background = element_rect(fill = "white", colour = "black"),
+  )
+
+# We are using the library "gridExtra" to create a plot containing
+# multiple graphs.
+library(gridExtra)
+grid.arrange(p, p25, p4, p5, ncol=2, nrow = 2)
+```
+
+The result shows us how the majority of earthquakes are always in the range 
+between 0 km and 20 km. This could be due to the fact that deeper earthquakes 
+are more difficult to detect by instruments. As a consequence, we hypothesised that 
+only intense deep earthquakes can be detected.
+
+## VOLCANIC ACTIVITY
+
+In this section, our purpose is to investigate if there is a relation between 
+volcanic eruptions and earthquakes. As we can see from books, sometimes 
+the events are correlated. The analysis is focused on finding the geographical 
+areas in which this could be true. The approach will be mainly graphical. 
+
+First of all, we import the dataset regarding volcano eruptions. 
+
+We eliminate all the records without a specified position. In addition, we 
+model the volcano data-set, in particular, we have changed the value of the 
+"Volcano.Explosivity.Index..VEI." to substitute the NA values with 0. 
+We have decided to perform this change because with a zero we can obtain a 
+number that will be used a second time (in calculating approximately the 
+risk of natural disaster in the area, our purpose). With Na, we are going to lose 
+information. 
+
+```{r volcano, echo= TRUE}
+
+volcano <- read.csv("C:/Users/buson/OneDrive/Desktop/r_project/project_folder/data/volcano_eruptions.csv",
+                      header = TRUE)
+
+volcano <- volcano[which(!is.na(volcano$Latitude | volcano$Longitude)),]
+volcano[which(is.na(volcano$Volcano.Explosivity.Index..VEI.)), "Volcano.Explosivity.Index..VEI."] <- 0
+```
+
+The next step is to create some graphical analysis. In particular, we want to 
+show the world distribution of earthquake and volcanic explosions based on 
+geographical location. The point colour depends respectively on the magnitude and 
+the explosiveness index.
+
+**NB**: in this section, we are using a modified data-set. We are using 
+only perceivable earthquakes (more than 2.5 of magnitude).
+
+```{r volcanoearthquakeworld, echo=FALSE, fig.width= 10, message=FALSE, warning=FALSE, include=TRUE}
+library(tidyverse)
+
+# create data for world coordinates using map_data() function
+
+world_coordinates <- map_data("world")
+
+p_v <- ggplot() +
+  geom_map(
+    data = world_coordinates, map = world_coordinates,
+    aes(x = long, y = lat, map_id = region), 
+    fill = "lightgray", 
+    colour = "black") +
+  geom_point(data = volcano, 
+             aes(x = Longitude, y = Latitude, colour = Volcano.Explosivity.Index..VEI.)
+             ) + 
+  scale_colour_gradient(name = "Explosiveness Index",low = "#fbf8bc",
+                      high = "#FF0000")+
+  ggtitle("Historical Volcano Eurptions/nGeographical distribution") +
+  theme(
+    legend.position = "bottom") +
+  xlab("Longitude") + 
+  ylab("Latitude") +
+  theme(
+    legend.title = element_text(
+      family = "Calibri",
+      face = "bold",
+      size = 12),
+    legend.background = element_rect(fill = "white", colour = "black"),
+  )
+
+p_e <- ggplot() +
+  geom_map(
+    data = world_coordinates, map = world_coordinates,
+    aes(x = long, y = lat, map_id = region), 
+    fill = "lightgray", 
+    colour = "black") + 
+  geom_point(data = df_twopointfive, 
+             aes(x = longitude, y = latitude, colour = mag)) + 
+  scale_colour_gradient(name = "Magnitude",low = "#fbf8bc",
+                        high = "#FF0000")+
+  ggtitle("Perceivable Earthquakes/nGeographical distribution") +
+  theme(
+    legend.position = "bottom") +
+  xlab("Longitude") + 
+  ylab("Latitude") +
+  theme(
+    legend.title = element_text(
+      family = "Calibri",
+      face = "bold",
+      size = 12),
+    legend.background = element_rect(fill = "white", colour = "black"),
+  )
+
+# Loading the library "gridExtra" we are going to show all the data into the same 
+# panel. 
+
+library(gridExtra)
+
+grid.arrange(p_e, p_v, ncol=2, nrow = 1)
+``` 
+
+In addition, we want to give a more precise idea of the patterns that are 
+recognizable by creating a new map with all the occurrences.
+
+```{r globalmap, echo= FALSE, include = TRUE, message= FALSE, warning= FALSE,  fig.width = 10}
+ggplot() +
+  geom_map(
+    data = world_coordinates, map = world_coordinates,
+    aes(x = long, y = lat, map_id = region), 
+    fill = "lightgray", 
+    colour = "black") + 
+  geom_point(data = df_twopointfive, 
+             aes(x = longitude, y = latitude), 
+             colour = "red") +
+  geom_point(data = volcano, 
+             aes(x = Longitude, y = Latitude), 
+             colour = "orange") +
+  ggtitle("Distribution of perceivable earthquakes(violet) and eruptions(yellow)")
+``` 
+
+From the map, it is possible to see that the area between Japan and Indonesia
+has a strong correspondence. From the geological paper, we know that in this 
+area we have the boundary of three geological plates as Eurasian Plate,
+Philippine Sea Plate and the Australian Plate. Another interesting pattern 
+can be detected in Mexico and South America. Also in this case, the presence 
+of volcanoes and earthquakes seems to be correlated to the presence of tectonic
+plates. Another 2 interesting areas are the south coast of Alaska and the
+middle of the Atlantic Ocean. 
+
+The first heat map will represent the distribution in the world of earthquakes (perceivable 
+ones). The second one will show data about the distribution of historical 
+volcano eruptions. 
+
+```{r heatmap_E, echo= FALSE, include = TRUE, message= FALSE, warning= FALSE, fig.height= 6, fig.width= 10}
+ggplot() +
+  geom_map(
+    data = world_coordinates, map = world_coordinates,
+    aes(x = long, y = lat, map_id = region),
+    fill = "lightgray", 
+    colour = "black"
+    ) +
+  geom_bin2d(data = df_twopointfive, 
+             aes(x = longitude, y = latitude)) + 
+  scale_fill_gradient(name = "Frequency",low = "#fbf8bc",
+                      high = "#FF0000") +
+  ggtitle("Distribution of perceivable earthquakes.") +
+  theme(
+    legend.title = element_text(
+      family = "Calibri",
+      face = "bold",
+      size = 12),
+    legend.background = element_rect(fill = "white", colour = "black"),
+  ) 
+```
+
+Since the earthquake database that we are using is compiled using US station data, there is some form of bias.
+However, by using a distinction between perceivable and not perceivable we can partly overcome the issue.
+As a result, it is possible to find some parts of the world that are more affected by earthquakes. In particular, relevant areas are the western coast of North and South America, and the area from Russia to Indonesia. 
+In addition, the graph shows that the most affected area is between Haiti and Puerto Rico, followed by areas such as
+Hawaii and the border between Mexico and USA. 
+
+```{r heatmap_V, echo= FALSE, include = TRUE, message= FALSE, warning= FALSE, fig.height= 6, fig.width= 10}
+ggplot() +
+  geom_map(
+    data = world_coordinates, map = world_coordinates,
+    aes(x = long, y = lat, map_id = region),
+    fill = "lightgray", 
+    colour = "black"
+  )  +
+  geom_bin2d(data = volcano,
+             aes(x = Longitude, y = Latitude)) +
+  scale_fill_gradient(name = "Frequency",low = "#fbf8bc",high = "#FF0000") +
+  ggtitle("Distribution of volcano eruptions.") +
+  theme(
+    legend.title = element_text(
+      family = "Calibri",
+      face = "bold",
+      size = 12),
+    legend.background = element_rect(fill = "white", colour = "black"),
+  ) 
+``` 
+
+For what concerns volcanic eruptions The area between Russia and Indonesia seems to be the most affected. The maximum frequency can be detected in Indonesia. However, the graph shows that also in Island there is a strong concentration of volcanic eruptions. Other areas strongly affected are the Mediterranean Sea, Japan and the Philippines. 
+
+## ANALYSIS OF RISK
+
+In conclusion, we want to show the geographic position of earthquakes and eruptions. In particular we
+define our grid of evaluation for the geological hazard. 
+We have decided to increment the risk index based on the magnitude and the explosiveness index of a 
+specific volcano. Of course, we do not expect it to be correct, since it is structured purely on experience and
+not through a scientific investigation. However, the result seems to show some similarities with scientifical maps
+about risk. 
+
+First of all, we define a df_risk containing Latitude, Longitude and Risk_Index. In the script below the readers can understand how the index was defined. 
+
+```{r risk_definition, echo= TRUE, include = TRUE, message= FALSE, warning= FALSE,  fig.width = 10}
+df_temp_V <- volcano[, c("Latitude", "Longitude")]
+df_temp_V[, "Explosivness_Index"] <- as.integer(volcano$Volcano.Explosivity.Index..VEI.)
+
+for (i in 1:length(df_temp_V$Explosivness_Index)){
+  if (df_temp_V$Explosivness_Index[i] == 7){
+    df_temp_V$Explosivness_Index[i] <- df_temp_V$Explosivness_Index[i]*1.8
+  }
+  if (df_temp_V$Explosivness_Index[i] == 6){
+    df_temp_V$Explosivness_Index[i] <- df_temp_V$Explosivness_Index[i]*1.6
+  }
+  if (df_temp_V$Explosivness_Index[i] == 5){
+    df_temp_V$Explosivness_Index[i] <- df_temp_V$Explosivness_Index[i]*1.4
+  }
+  if (df_temp_V$Explosivness_Index[i] == 4){
+    df_temp_V$Explosivness_Index[i] <- df_temp_V$Explosivness_Index[i]*1.2
+  }
+  if (df_temp_V$Explosivness_Index[i] <= 2){
+    df_temp_V$Explosivness_Index[i] <- df_temp_V$Explosivness_Index[i]*0.8
+  }
+}
+# head(df_temp_V)
+
+df_temp_E <- df[, c("latitude", "longitude")]
+df_temp_E[, "mag_int"] <- as.integer(df$mag)
+
+for (i in 1:length(df_temp_E$mag_int)){
+  if (df_temp_E$mag_int[i] > 7 & df_temp_E$mag_int[i]<= 8){
+    df_temp_E$mag_int[i] <- df_temp_E$mag_int[i]*2
+  }
+  if (df_temp_E$mag_int[i] > 6 & df_temp_E$mag_int[i]<= 7){
+    df_temp_E$mag_int[i] <- df_temp_E$mag_int[i]*1.8
+  }
+  if (df_temp_E$mag_int[i] > 5 & df_temp_E$mag_int[i]<= 6){
+    df_temp_E$mag_int[i] <- df_temp_E$mag_int[i]*1.6
+  }
+  if (df_temp_E$mag_int[i] > 4 & df_temp_E$mag_int[i]<= 5){
+    df_temp_E$mag_int[i] <- df_temp_E$mag_int[i]*1.4
+  }
+  if (df_temp_E$mag_int[i] > 3 & df_temp_E$mag_int[i]<= 4){
+    df_temp_E$mag_int[i] <- df_temp_E$mag_int[i]*1.2
+  }
+  if (df_temp_E$mag_int[i] <= 2){
+    df_temp_E$mag_int[i] <- df_temp_E$mag_int[i]*0.8
+  }
+}
+# head(df_temp_E)
+
+
+df_risk <- data.frame(Latitude = df_temp_E$latitude,
+                      Longitude = df_temp_E$longitude,
+                      Risk_Index = df_temp_E$mag_int)
+df_risk[(length(df_temp_E$mag_int)+1):(length(df_temp_E$mag_int)+length(df_temp_V$Explosivness_Index)), ] <- df_temp_V
+
+head(df_risk)
+```
+In the first graph, we want to show the frequency of high-risk events (Risk_Index greater than 4) around the world. 
+
+```{r risk_map_1, echo= FALSE, include = TRUE, message= FALSE, warning= FALSE,  fig.width = 10}
+ggplot() +
+  geom_map(
+    data = world_coordinates, map = world_coordinates,
+    aes(x = long, y = lat, map_id = region),
+    fill = "lightgray", 
+    colour = "black"
+  )  +
+  geom_bin2d(data = df_risk[which(df_risk$Risk_Index>4),],
+             aes(x = Longitude, y = Latitude)) +
+  scale_fill_gradient(name = "Frequency",low = "#fbf8bc",
+                      high = "#FF0000") +
+  theme(
+    legend.title = element_text(
+      family = "Calibri",
+      face = "bold",
+      size = 12),
+    legend.background = element_rect(fill = "white", colour = "black"),
+    ) +
+  ggtitle("Frequency of Perceivable Earthquakes and Eruptions.")
+``` 
+
+Thanks to this heat map we can spot that Iceland is the area in which there is the 
+majority of risky events. We believe that is because in the area there are 
+more or less 130 volcanoes, 30 of which are still active. That is why we believe that 
+in this case frequency could be a good indicator but not necessarily the best. 
+What we find interesting is the area from Russia to Indonesia. It is a risky area, 
+in this case for the presence of both volcanoes (for example Japan has more than 200 active
+volcanoes, Indonesia around 130) and perceivable earthquakes. Another interesting area is 
+the Andean Cordillera, known for seismic events and volcanoes. 
+
+In conclusion, we define a map with all the points with Risk_Index above 4. 
+
+```{r risk_map_2, echo= FALSE, include = TRUE, message= FALSE, warning= FALSE,  fig.width = 10}
+ggplot() +
+  geom_map(
+    data = world_coordinates, map = world_coordinates,
+    aes(x = long, y = lat, map_id = region), 
+    fill = "lightgray", 
+    colour = "black") + 
+  geom_point(data = df_risk[which(df_risk$Risk_Index>4),], 
+             aes(x = Longitude, y = Latitude, colour = as.integer(Risk_Index)), size = 2
+             ) +
+  scale_colour_gradient(name = "Risk Index",
+                        low = "#fbf8bc",
+                      high = "#FF0000") +
+  theme(
+    legend.title = element_text(
+      family = "Calibri",
+      face = "bold",
+      size = 12),
+    legend.background = element_rect(fill = "white", colour = "black"),
+  ) +
+  ggtitle("Distribution of perceivable Earthquakes and Eruptions.")
+``` 
+
+In this conclusive graph, we can finally spot areas with higher risk values. 
+Our belief that Iceland was not an area of high risk is confirmed by the colours in the 
+risk map. We, therefore, confirm that the Asian coasts of the Pacific Ocean and
+the Andean Cordillera have significant 
+values of the Risk_Index. In this map, we can see that also Mexico, Alaska and French Polynesia
+are high-risk areas.
+
+## CHAPTER OF OUR CHOICE
+
+
+We decided to show the data and the maps in a more dynamic way. That is why we decided to 
+implement a shiny app using the libraries "shiny" and "shinythemes". You can find the final product 
+in the attached folder named "shiny_app". As it is written in the readMe.txt file,
+it is important to change the name of the directory (on the .txt file it is specified 
+also in whichs line you need to do that) in order to make sure everything works.
+Here the you can find a commented preview of the code. 
+
+```{r shiny_code, echo= TRUE}
+# library(shinythemes)
+# library(shiny)
+# col.tmp <- c( "-1" = "purple","0" = "violet", "1" = "blue",
+#               "2"="skyblue","3"="green","4"="yellow",
+#               "5"="orange","6"="darkorange","7"="red")
+# pnt.size <- c( "-1" = .1,"0" = .1, "1" = .1, "2"=.1,"3"=.1,
+#                "4"=.1,"5"=.2,"6"=.3,"7"=.3)
+# # Define the Shiny UI
+# ui <- fluidPage(theme = shinytheme("slate"),
+# 
+#   
+#   navbarPage("Earthquakes Visualization",
+#              
+#              tabPanel("Preview",
+#                       
+#                       sidebarLayout(
+#                         
+#                         sidebarPanel(width= 2,
+#                                      helpText("R-Bootcamp course project at HSLU")),
+#                         
+#                         mainPanel( titlePanel("Preview"),
+#                                    fluidRow(
+#                                      column(10, h4("Geographical Data Visualisation")),
+#                                      column(10,style = "text-align: justify; margin-left: 20px; margin-right: 20px;", p("The idea is to first create a table with interactive elements to make data exploration 
+#                                      simpler. Following that, the visualisation of the events by magnitude and type would be available. 
+#                                      Obtaining a geographical dataset consisting of world country borders, selection of the country itself
+#                                       is accomplished and executed in a user-friendly manner.
+#                                                                                                                        ")),
+#                                      column(10, h4("Data overview")),
+#                                      column(10, tableOutput("tablep")),
+#                                      column(10, h4("Data granularity")),
+#                                      column(10,style = "text-align: justify; margin-left: 20px; margin-right: 20px;", p("The granularity of an earthquake dataset in 2022 with columns such as months, days, latitude, longitude, depth, mag, rms, place, and type can significantly affect the accuracy and reliability of any analysis or visualisation performed on it.
+# 
+#                                               The dataset can be made granular by including the exact date and time of each earthquake, allowing for detailed analysis of temporal patterns such as the frequency of earthquakes throughout the year and their possible correlation with other variables.
+#                                               
+#                                                  Furthermore, including each earthquake's latitude and longitude provides a granular view of its geographical distribution, allowing for spatial analysis to identify hotspots and potentially vulnerable areas. Besides that, including information on the depth, magnitude, and type of each earthquake can aid in identifying potential causal factors that contribute to seismic activity.")),
+#                                      column(10, h4("Feature Engineering")),
+#                                      column(10,style = "text-align: justify; margin-left: 20px; margin-right: 20px;", p("Some feature engineering was required, such as the aggregation of magnitude data and the addition of only integer values to the dataset. This is due to  magnitude levels ranging from -1 to 1, which include surface seismic events  created by controlled explosions related to underground mining.")),
+#                                      column(10, h4("Type of Seismic Events")),
+#                                      column(10,style = "text-align: justify; margin-left: 20px; margin-right: 20px;", p("Seismic events like earthquakes, quarry blasts, ice quakes, explosions, and chemical explosions differ in a number of ways.")),
+#                                      column(10,style = "text-align: justify; margin-left: 20px; margin-right: 20px;", p("Earthquakes: Earthquakes are a type of natural phenomenon that happen when tectonic plates under the crust of the earth move. They frequently cause ground displacement, vibration, and shaking. An earthquake can range in size and intensity from minor tremors to catastrophic quakes.")),
+#                                      column(10,style = "text-align: justify; margin-left: 20px; margin-right: 20px;", p("Quarry Blast: When explosives are used to dislodge rocks and minerals during mining or construction operations, a quarry blast results. They result in an abrupt and powerful release of energy that can produce seismic waves, which cause shaking and ground movement.")),
+#                                      column(10,style = "text-align: justify; margin-left: 20px; margin-right: 20px;", p("Ice Quake: An ice quake is a type of seismic occurrence that takes place when permafrost, a frozen ground, experiences rapid temperature changes that cause the ice to split and crack. Similar to an earthquake, the resulting seismic waves can cause trembling and noise.")),
+#                                       column(10,style = "text-align: justify; margin-left: 20px; margin-right: 20px;", p("Explosion: An explosion is a sudden, violent release of energy that can be brought on by a number of things, including chemical reactions, gas leaks, or even fireworks. They have the ability to produce seismic waves, which can move the ground and cause shaking.")),
+#                                       column(10,style = "text-align: justify; margin-left: 20px; margin-right: 20px;", p("Chemical Explosion: A chemical reaction can result in the sudden and violent release of energy that results in a chemical explosion. Since chemical reactions take place instead of physical events like gas leaks or fireworks, they differ from regular explosions in this regard.
+#                                                                                                                          They have the ability to produce seismic waves, which can shake and move the ground.")),
+#                                      
+#                                    )
+#                                    )) ),
+#              tabPanel("Table",
+#                       
+#                       sidebarLayout(
+#                         
+#                         sidebarPanel(width= 2,
+#                                      sliderInput("slider2", "Magnitude:", min = -1, max = 7,width = 200 , value = 1),
+#                                      selectInput("select2", "Type:",width = 200 , choices = unique(df_geo_vis$type)),
+#                                      helpText("Help: Select the magnitude and type of earthquakes to visualize on the table")),
+#                         
+#                         mainPanel( titlePanel("Earthquakes table"), 
+#                                    
+#                                    fluidRow(
+#                                      #column(6, img(src = "my_photo.jpg")),
+#                                      column(6, p("Time span, Magnitude are aggregated for this very project."))
+#                                    ),tableOutput("table")
+#                                    )) ),
+#              
+#              tabPanel("Map",
+#                       
+#                       sidebarLayout(
+#                         
+#                         sidebarPanel(width= 2,
+#                                      sliderInput("slider", "Magnitude:", min = -1, max = 7,width = 200 , value = 1),
+#                                      selectInput("select", "Type:",width = 200 , choices = unique(df_geo_vis$type)),
+#                                      selectInput("selectName", "Country:",width = 200 , choices = sort(unique(world$name))),
+#                                      helpText("Help: Select the magnitude and type of earthquakes to visualize on the map.")),
+#                         
+#                         mainPanel( titlePanel("Earthquakes by magnitude and type 
+#                                               "), plotlyOutput("map",width = "125%", height = "800px")))),
+#              tabPanel("About us",
+#                       
+#                       fluidRow(
+#                       column(6,div(style="text-align: center;",imageOutput("Daniele",width=1000,height=300)),
+#                       h3("Daniele Buson"), p("Data Scientist and Mathematical Engineer"),
+#                       p(a("daniele.buson@stud.hslu.ch"))),
+#                       
+#                       column(6,div(style="text-align: center;",imageOutput("Morty",width=1100,height=300)),
+#                       h3("Morteza Kiani Haftlang"), p("Data Scientist and Electrical Engineer"),
+#                       p(a("morteza.kianihaftlang@stud.hslu.ch")))
+#                                )
+#                       
+#                       
+#                       )) 
+#              
+#  ) 
+# 
+# # Define the Shiny server
+# server <- function(input, output) {
+#   
+#   output$map <- renderPlotly({
+#     
+#     
+#     col.pnt <- col.tmp[as.character(input$slider)]
+#     size.pnt <- pnt.size[as.character(input$slider)] 
+#     
+#     filtered.df <- df_geo_vis[df_geo_vis$int_mag==input$slider ,]
+#     filtered.df2 <- filtered.df[filtered.df$type==input$select,]
+#     country <- world[world$name ==input$selectName,]
+#     
+#     p <-ggplot() + geom_sf(data = world)+ 
+#       geom_sf(data=country, fill = "brown")+
+#       
+#       geom_point(data=filtered.df2, 
+#                  mapping = aes(x=longitude,
+#                                y=latitude),
+#                  color = col.pnt,size=size.pnt*10)+
+#       
+#       #scale_colour_gradientn(colors=rev(rainbow(9)))
+#       scale_color_identity()
+#     ggplotly(p) })
+#   
+#   output$table <- renderTable({
+#     filtered.df <- df_geo_vis[df_geo_vis$int_mag==input$slider2 ,]
+#     filtered.df2 <- filtered.df[filtered.df$type==input$select2,]
+#     })
+#   
+#   output$tablep <- renderTable({
+#     head(df_geo_vis,7)
+#   })
+#   
+#   output$Daniele <- renderImage({ list(src = "C:/Users/buson/OneDrive/Desktop/r_project/project_folder/images/Daniele.jpg",width="25%")}, deleteFile = F)
+#   output$Morty <- renderImage({ list(src = "C:/Users/buson/OneDrive/Desktop/r_project/project_folder/images/Morty.jpg",width="25%")}, deleteFile = F)
+#   
+# }
+# 
+# # Run the Shiny app
+# shinyApp(ui, server)
+``` 
